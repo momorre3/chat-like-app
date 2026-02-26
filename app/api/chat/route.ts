@@ -1,7 +1,19 @@
 import OpenAI from "openai";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   try {
+    // ✅ Supabaseログイン必須
+    const supabase = createClient();
+    const { data } = await supabase.auth.getUser();
+
+    if (!data.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const { message } = await req.json();
 
     if (!message || typeof message !== "string") {
@@ -27,10 +39,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return new Response(
       JSON.stringify({ error: e?.message ?? "Unknown error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
