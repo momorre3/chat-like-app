@@ -1,34 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "../../lib/supabase/client";
 
 export default function Home() {
-  const [password, setPassword] = useState("");
-  const [saved, setSaved] = useState(false);
+  const supabase = createClient();
+
+  const [ready, setReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const p = localStorage.getItem("app_password") || "";
-    if (p) {
-      setPassword(p);
-      setSaved(true);
+    async function boot() {
+      const { data } = await supabase.auth.getSession();
+      setIsLoggedIn(!!data.session);
+      setReady(true);
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        setIsLoggedIn(!!session);
+      });
     }
+    boot();
   }, []);
 
-  function savePassword() {
-    localStorage.setItem("app_password", password);
-    setSaved(true);
-    setReply("");
-  }
-
-  function clearPassword() {
-    localStorage.removeItem("app_password");
-    setPassword("");
-    setSaved(false);
-    setReply("");
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
   }
 
   async function send() {
@@ -38,20 +38,14 @@ export default function Home() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-app-password": password,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
-        setReply(`Error: ${data?.error ?? "Unknown error"}`);
-      } else {
-        setReply(data.text);
-      }
+      if (!res.ok) setReply(`Error: ${data?.error ?? "Unknown error"}`);
+      else setReply(data.text);
     } catch (e: any) {
       setReply(`Error: ${e?.message ?? "Network error"}`);
     } finally {
@@ -59,38 +53,20 @@ export default function Home() {
     }
   }
 
+  if (!ready) return null;
+
+  if (!isLoggedIn) {
+    if (typeof window !== "undefined") window.location.href = "/login";
+    return null;
+  }
+
   return (
     <main style={{ maxWidth: 800, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 12 }}>Chat-like App</h1>
-
-      <div style={{ marginBottom: 16, padding: 12, border: "1px solid #444" }}>
-        <div style={{ fontSize: 14, marginBottom: 8 }}>
-          このアプリは合言葉が必要です
-        </div>
-
-        <input
-          type="password"
-          value={password}
-          placeholder="合言葉（パスワード）"
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 10, fontSize: 16 }}
-        />
-
-        <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-          <button
-            onClick={savePassword}
-            disabled={password.trim().length === 0}
-            style={{ padding: "8px 12px", fontSize: 14, cursor: "pointer" }}
-          >
-            {saved ? "更新" : "保存"}
-          </button>
-          <button
-            onClick={clearPassword}
-            style={{ padding: "8px 12px", fontSize: 14, cursor: "pointer" }}
-          >
-            クリア
-          </button>
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ fontSize: 24, marginBottom: 12 }}>Chat-like App</h1>
+        <button onClick={logout} style={{ padding: "8px 12px", cursor: "pointer" }}>
+          ログアウト
+        </button>
       </div>
 
       <textarea
@@ -103,13 +79,8 @@ export default function Home() {
 
       <button
         onClick={send}
-        disabled={loading || message.trim().length === 0 || password.trim().length === 0}
-        style={{
-          marginTop: 12,
-          padding: "10px 14px",
-          fontSize: 16,
-          cursor: "pointer",
-        }}
+        disabled={loading || message.trim().length === 0}
+        style={{ marginTop: 12, padding: "10px 14px", fontSize: 16, cursor: "pointer" }}
       >
         {loading ? "送信中..." : "送信"}
       </button>
