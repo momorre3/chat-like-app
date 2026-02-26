@@ -1,11 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [password, setPassword] = useState("");
+  const [saved, setSaved] = useState(false);
+
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const p = localStorage.getItem("app_password") || "";
+    if (p) {
+      setPassword(p);
+      setSaved(true);
+    }
+  }, []);
+
+  function savePassword() {
+    localStorage.setItem("app_password", password);
+    setSaved(true);
+    setReply("");
+  }
+
+  function clearPassword() {
+    localStorage.removeItem("app_password");
+    setPassword("");
+    setSaved(false);
+    setReply("");
+  }
 
   async function send() {
     setLoading(true);
@@ -14,7 +38,10 @@ export default function Home() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-app-password": password,
+        },
         body: JSON.stringify({ message }),
       });
 
@@ -36,6 +63,36 @@ export default function Home() {
     <main style={{ maxWidth: 800, margin: "40px auto", padding: 16 }}>
       <h1 style={{ fontSize: 24, marginBottom: 12 }}>Chat-like App</h1>
 
+      <div style={{ marginBottom: 16, padding: 12, border: "1px solid #444" }}>
+        <div style={{ fontSize: 14, marginBottom: 8 }}>
+          このアプリは合言葉が必要です
+        </div>
+
+        <input
+          type="password"
+          value={password}
+          placeholder="合言葉（パスワード）"
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: "100%", padding: 10, fontSize: 16 }}
+        />
+
+        <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+          <button
+            onClick={savePassword}
+            disabled={password.trim().length === 0}
+            style={{ padding: "8px 12px", fontSize: 14, cursor: "pointer" }}
+          >
+            {saved ? "更新" : "保存"}
+          </button>
+          <button
+            onClick={clearPassword}
+            style={{ padding: "8px 12px", fontSize: 14, cursor: "pointer" }}
+          >
+            クリア
+          </button>
+        </div>
+      </div>
+
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
@@ -46,7 +103,7 @@ export default function Home() {
 
       <button
         onClick={send}
-        disabled={loading || message.trim().length === 0}
+        disabled={loading || message.trim().length === 0 || password.trim().length === 0}
         style={{
           marginTop: 12,
           padding: "10px 14px",
